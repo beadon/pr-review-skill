@@ -5,17 +5,31 @@ A Claude Code `/pr-review` command that performs comprehensive GitHub PR reviews
 ## What it does
 
 1. Fetches PR metadata, diff, inline comments, review history, and head SHA via `gh` CLI
-2. Analyzes the diff against a standard review checklist (functionality, correctness, security, testing, style, PR quality)
-3. Writes a detailed internal `review.md` and a clean `human.md` draft ready to post
-4. Creates `/send` and `/send-decline` commands — nothing is posted to GitHub until you run one of them
+2. Checks the project conventions file (`CLAUDE.md`, `CONTRIBUTING.md`) before reviewing
+3. Reads test changes before implementation changes — the most common test quality failures show up first
+4. Analyzes the diff against a standard review checklist (functionality, correctness, security, testing, style, PR quality)
+5. Writes a detailed internal `review.md` and a clean `human.md` draft ready to post
+6. Creates `/send` and `/send-decline` commands — nothing is posted to GitHub until you run one of them
+
+## Skills
+
+| File | Command | Purpose |
+|---|---|---|
+| `SKILL.md` | `/pr-review` | General-purpose PR review for any language |
+| `SKILL-PERL.md` | `/pr-review-perl` | Perl-specific checks to run alongside `/pr-review` |
 
 ## Installation
 
-Copy `SKILL.md` to your global Claude Code commands directory:
+Copy both skills to your global Claude Code commands directory:
 
 ```bash
+# General skill
 curl -fsSL https://raw.githubusercontent.com/beadon/pr-review-skill/main/SKILL.md \
   -o ~/.claude/commands/pr-review.md
+
+# Perl sub-skill (add when reviewing Perl codebases)
+curl -fsSL https://raw.githubusercontent.com/beadon/pr-review-skill/main/SKILL-PERL.md \
+  -o ~/.claude/commands/pr-review-perl.md
 ```
 
 Or clone and symlink:
@@ -23,15 +37,23 @@ Or clone and symlink:
 ```bash
 git clone git@github.com:beadon/pr-review-skill.git ~/skills/pr-review-skill
 ln -s ~/skills/pr-review-skill/SKILL.md ~/.claude/commands/pr-review.md
+ln -s ~/skills/pr-review-skill/SKILL-PERL.md ~/.claude/commands/pr-review-perl.md
 ```
 
 ## Usage
 
-Inside Claude Code, pass a PR URL or number:
+For any PR:
 
 ```
 /pr-review https://github.com/owner/repo/pull/123
 /pr-review owner/repo 123
+```
+
+For Perl codebases, run the sub-skill first to load the additional checks, then invoke the main review:
+
+```
+/pr-review-perl
+/pr-review https://github.com/owner/repo/pull/123
 ```
 
 After the review is prepared, run:
