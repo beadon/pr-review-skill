@@ -1,7 +1,8 @@
 ---
+name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.0.0"
+version: "1.1.0"
 ---
 
 ## Overview
@@ -95,6 +96,11 @@ Review the fetched data against all categories below. Document findings as you g
 | **Security** | Injection? Unvalidated external input? Credential exposure? |
 | **Testing** | Tests exist? Cover success and error paths? Assertions meaningful? |
 | **PR Quality** | Focused scope? Commit messages clear? Description accurate? |
+
+**Testing — additional checks:**
+- Does the stub or mock target the exact symbol production code calls? A stub wired to the wrong namespace or import path never fires (e.g., Perl: `CORE::sleep` vs `ddclient::sleep`; Python: the import path at call time, not the definition path).
+- Would this test still fail if the production logic it targets were removed or broken? If not, the test provides no regression coverage.
+- Are bare numeric literals in test assertions derived from configurable defaults? A default value is not a correctness invariant — tests should use the configurable parameter directly rather than hardcoding the default's computed value (e.g., asserting jitter is always `< interval * 0.2` when `0.2` is just the default percentage, not a fixed bound).
 
 ### Finding Priority Markers
 
