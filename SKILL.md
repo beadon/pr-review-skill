@@ -2,7 +2,7 @@
 name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.1.0"
+version: "1.3.0"
 ---
 
 ## Overview
@@ -89,13 +89,13 @@ Review the fetched data against all categories below. Document findings as you g
 | Category | Key Questions |
 |---|---|
 | **Functionality** | Does the code solve the stated problem? Edge cases handled? Regressions possible? |
-| **Correctness** | Logic errors? Off-by-one? Null/undef dereferences? Guard clauses used to reduce nesting rather than deep if/else chains? |
-| **Readability** | Meaningful names? DRY? Comments explain *why* not *what*? Magic numbers replaced with named constants? Functions kept to a reasonable length, with abstraction applied where appropriate? |
+| **Correctness** | Logic errors? Off-by-one? Null/undef dereferences? Guard clauses used to reduce nesting rather than deep if/else chains? What are the failure modes — do they fail loudly, silently, or dangerously? For changes to shared, base, or widely-used code: is the impact radius understood? Could this break callers in non-obvious ways? Concurrency: race conditions, shared mutable state, or missing locks in concurrent contexts? |
+| **Readability** | Meaningful names? DRY? Comments explain *why* not *what*? Magic numbers replaced with named constants? Functions kept to a reasonable length, with abstraction applied where appropriate? Are there one-use trivial helpers or wrapper classes that add indirection without value? Is there a simpler built-in or standard library method that could replace custom logic? |
 | **Style** | Consistent with codebase conventions? Follows project patterns? |
 | **Performance** | Any O(n²) where O(n) would do? Unnecessary repeated calls? |
 | **Security** | Injection? Unvalidated external input? Credential exposure? |
-| **Testing** | Tests exist? Cover success and error paths? Assertions meaningful? Does the PR description show evidence the author ran and tested the change locally? |
-| **PR Quality** | Focused scope? Commit messages clear? Description accurate? PR not in draft/WIP without proper designation? For user-facing changes, is a changelog or NEWS entry included? |
+| **Testing** | Tests exist? Cover success and error paths? Assertions meaningful? Does the PR description show evidence the author ran and tested the change locally? Are any existing assertions weakened, removed, or replaced with tautologies to make tests pass? |
+| **PR Quality** | Focused scope? Commit messages clear? Description accurate? PR not in draft/WIP without proper designation? For user-facing changes, is a changelog or NEWS entry included? Is this change solving the right problem — not just implementing what was literally asked? |
 
 **Testing — additional checks:**
 - Does the stub or mock target the exact symbol production code calls? A stub wired to the wrong namespace or import path never fires (e.g., Perl: `CORE::sleep` vs `ddclient::sleep`; Python: the import path at call time, not the definition path).
@@ -114,11 +114,13 @@ Review the fetched data against all categories below. Document findings as you g
 ### Analysis Steps
 
 1. Read `metadata.json` — understand scope, linked issues, existing reviews
-2. Read `diff.patch` — walk through every changed file
-3. Read `inline_comments.json` and `reviews.json` — note what reviewers already flagged (avoid duplicating)
-4. Read `issue_comments.json` — any discussion context
-5. Check commit messages for clarity and accuracy
-6. Apply the category checklist above
+2. Check for a project conventions file (`CLAUDE.md`, `CONTRIBUTING.md`, or similar) at the repo root and factor its rules into the review
+3. Read the **test changes** in `diff.patch` first, before the implementation — weakened or removed assertions are easiest to spot in isolation, before the implementation anchors your expectations
+4. Read the **implementation changes** in `diff.patch` — walk through every changed file
+5. Read `inline_comments.json` and `reviews.json` — note what reviewers already flagged (avoid duplicating)
+6. Read `issue_comments.json` — any discussion context
+7. Check commit messages for clarity and accuracy
+8. Apply the category checklist above
 
 ---
 
