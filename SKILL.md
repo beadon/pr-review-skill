@@ -219,3 +219,18 @@ gh api "/repos/${REPO}/pulls/${PR_NUM}/comments" \
 ```
 
 List proposed inline comments from `review.md` and ask the user which (if any) to post before running.
+
+---
+
+## References
+
+Sources consulted when building and refining this checklist:
+
+- **SpillwaveSolutions/pr-reviewer-skill** — original skill this was adapted from; gh CLI replacements for Python scripts applied during import
+  https://github.com/SpillwaveSolutions/pr-reviewer-skill
+- **ParadiseSS13/Paradise discussion #21968** — community PR review checklist covering code cleanliness, readability, runtime prevention, and testing practices; BYOND-specific items excluded
+  https://github.com/ParadiseSS13/Paradise/discussions/21968
+- **r/rails — "How do you approach PR reviews?"** (u/arup_r, 2026) — practitioner discussion; contributed: test diff before implementation diff, tautological assertion detection, failure mode analysis, impact radius for shared code, unnecessary abstraction as tech debt, right-problem check
+- **bhserna review skill gist** — Claude Code skill for branch/PR review; contributed: check project conventions file (CLAUDE.md/CONTRIBUTING.md) before reviewing, concurrency as an explicit correctness concern
+  https://gist.github.com/bhserna/831bc50ad38378813eee9d9407609cf7
+- **ddclient/ddclient PR #888 review** — real-world review where the testing depth checks were first identified: Perl namespace mismatch (`CORE::sleep` vs `ddclient::sleep`), regression sensitivity, and configurable-default-as-invariant in test assertions

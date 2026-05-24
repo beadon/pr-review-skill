@@ -51,3 +51,11 @@ After the review is prepared, run:
 All analysis is local. Nothing is posted to GitHub until you explicitly run `/send` or `/send-decline`. Edit `human.md` in the IDE before sending if needed.
 
 Review files are written to `/tmp/pr-review/<owner>/<repo>/<pr-number>/pr/`.
+
+## License
+
+AGPL-3.0-or-later. See [LICENSE](LICENSE).
+
+## Acknowledgements
+
+Checklist informed by [SpillwaveSolutions/pr-reviewer-skill](https://github.com/SpillwaveSolutions/pr-reviewer-skill), [ParadiseSS13/Paradise#21968](https://github.com/ParadiseSS13/Paradise/discussions/21968), practitioner discussion from r/rails, and [bhserna's review skill gist](https://gist.github.com/bhserna/831bc50ad38378813eee9d9407609cf7). See the References section in `SKILL.md` for full traceability.
