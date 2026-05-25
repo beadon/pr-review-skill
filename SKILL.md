@@ -2,7 +2,7 @@
 name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.3.0"
+version: "1.4.0"
 ---
 
 ## Overview
@@ -137,7 +137,7 @@ Include:
 - Overall assessment
 - Findings grouped by priority (Blocker → Important → Nit → Suggestion → Question → Praise)
 - Each finding: category, file:line if applicable, issue, recommendation
-- Proposed inline comments (file, line, comment text)
+- Proposed inline comments (file, line, side, comment body; for concrete code fixes include a ` ```suggestion ` block — renders as a one-click Apply button in GitHub)
 
 Use whatever formatting is useful for your own analysis — this file is not posted.
 
@@ -164,10 +164,28 @@ Write these two command files so the user can post the review when ready.
 ```
 Post the prepared review for PR #${PR_NUM} in ${REPO} as an **approval**.
 
-Read the review body from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md
+1. Read the commit SHA from: /tmp/pr-review/${REPO}/${PR_NUM}/head_sha.txt
+2. Read proposed inline comments from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/review.md
+3. Read the review body from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md
 
-Post it with:
-  gh pr review ${PR_NUM} --repo ${REPO} --approve --body "$(cat /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md)"
+Step A — Create a PENDING review, bundling all proposed inline comments:
+
+  gh api "/repos/${REPO}/pulls/${PR_NUM}/reviews" -X POST \
+    -f commit_id="HEAD_SHA" \
+    -f 'comments[][path]=PATH' -F 'comments[][line]=LINE' -f 'comments[][side]=RIGHT' -f 'comments[][body]=BODY' \
+    --jq '{id,state}'
+
+  Repeat the four comments[][] fields for each inline comment.
+  Omit all comments[][] fields if there are no inline comments.
+  For multi-line ranges: prepend -F 'comments[][start_line]=N' before the line field.
+  Use side=LEFT for deleted lines, side=RIGHT for added or context lines.
+  For concrete code fixes: include a ```suggestion block in the body.
+
+Step B — Submit the pending review using the id returned from Step A:
+
+  gh api "/repos/${REPO}/pulls/${PR_NUM}/reviews/REVIEW_ID/events" -X POST \
+    -f event="APPROVE" \
+    -f body="$(cat /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md)"
 
 Confirm success and show the URL of the posted review.
 Then delete ~/.claude/commands/send.md and ~/.claude/commands/send-decline.md so stale commands don't persist.
@@ -177,10 +195,28 @@ Then delete ~/.claude/commands/send.md and ~/.claude/commands/send-decline.md so
 ```
 Post the prepared review for PR #${PR_NUM} in ${REPO} as a **request for changes**.
 
-Read the review body from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md
+1. Read the commit SHA from: /tmp/pr-review/${REPO}/${PR_NUM}/head_sha.txt
+2. Read proposed inline comments from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/review.md
+3. Read the review body from: /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md
 
-Post it with:
-  gh pr review ${PR_NUM} --repo ${REPO} --request-changes --body "$(cat /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md)"
+Step A — Create a PENDING review, bundling all proposed inline comments:
+
+  gh api "/repos/${REPO}/pulls/${PR_NUM}/reviews" -X POST \
+    -f commit_id="HEAD_SHA" \
+    -f 'comments[][path]=PATH' -F 'comments[][line]=LINE' -f 'comments[][side]=RIGHT' -f 'comments[][body]=BODY' \
+    --jq '{id,state}'
+
+  Repeat the four comments[][] fields for each inline comment.
+  Omit all comments[][] fields if there are no inline comments.
+  For multi-line ranges: prepend -F 'comments[][start_line]=N' before the line field.
+  Use side=LEFT for deleted lines, side=RIGHT for added or context lines.
+  For concrete code fixes: include a ```suggestion block in the body.
+
+Step B — Submit the pending review using the id returned from Step A:
+
+  gh api "/repos/${REPO}/pulls/${PR_NUM}/reviews/REVIEW_ID/events" -X POST \
+    -f event="REQUEST_CHANGES" \
+    -f body="$(cat /tmp/pr-review/${REPO}/${PR_NUM}/pr/human.md)"
 
 Confirm success and show the URL of the posted review.
 Then delete ~/.claude/commands/send.md and ~/.claude/commands/send-decline.md so stale commands don't persist.
@@ -202,23 +238,45 @@ Show the user:
 
 ---
 
-## Inline Comments (Optional, Post-Review)
+## Inline Comment Syntax Reference
 
-After `/send` or `/send-decline`, individual inline comments can be added with:
+Inline comments are bundled into the PENDING review as part of `/send` and `/send-decline` (Step A). Field reference:
 
+| Field | Flag | Notes |
+|---|---|---|
+| `comments[][path]` | `-f` | File path relative to repo root |
+| `comments[][line]` | `-F` | End line number (integer; `-F` for type coercion) |
+| `comments[][start_line]` | `-F` | Start line for multi-line ranges (omit for single-line) |
+| `comments[][side]` | `-f` | `RIGHT` for added/context lines; `LEFT` for deleted lines |
+| `comments[][body]` | `-f` | Comment text; see suggestion block format below |
+
+Use `-f` for string fields, `-F` for integer fields (`line`, `start_line`).
+
+**Single-line comment:**
 ```bash
-HEAD_SHA=$(cat /tmp/pr-review/${REPO}/${PR_NUM}/head_sha.txt)
-
-gh api "/repos/${REPO}/pulls/${PR_NUM}/comments" \
-  --method POST \
-  --field body="COMMENT_TEXT" \
-  --field commit_id="${HEAD_SHA}" \
-  --field path="path/to/file" \
-  --field line=LINE_NUMBER \
-  --field side="RIGHT"
+-f 'comments[][path]=lib/ddclient.pm' \
+-F 'comments[][line]=42' \
+-f 'comments[][side]=RIGHT' \
+-f 'comments[][body]=Comment text'
 ```
 
-List proposed inline comments from `review.md` and ask the user which (if any) to post before running.
+**Multi-line comment (spans lines 40–42):**
+```bash
+-f 'comments[][path]=lib/ddclient.pm' \
+-F 'comments[][start_line]=40' \
+-F 'comments[][line]=42' \
+-f 'comments[][side]=RIGHT' \
+-f 'comments[][body]=Comment text'
+```
+
+**Code suggestion** (renders as one-click Apply button in GitHub):
+```bash
+-f 'comments[][body]=Prefer int(rand($n)) to avoid silent float truncation passed to sleep:
+
+```suggestion
+my $jitter = int(rand($interval * $pct));
+```'
+```
 
 ---
 
@@ -234,3 +292,5 @@ Sources consulted when building and refining this checklist:
 - **bhserna review skill gist** — Claude Code skill for branch/PR review; contributed: check project conventions file (CLAUDE.md/CONTRIBUTING.md) before reviewing, concurrency as an explicit correctness concern
   https://gist.github.com/bhserna/831bc50ad38378813eee9d9407609cf7
 - **ddclient/ddclient PR #888 review** — real-world review where the testing depth checks were first identified: Perl namespace mismatch (`CORE::sleep` vs `ddclient::sleep`), regression sensitivity, and configurable-default-as-invariant in test assertions
+- **aidankinzett/claude-git-pr-skill** — contributed: pending review API pattern (bundle inline comments into PENDING review before submitting), code suggestion ` ```suggestion ` block syntax, `-f` vs `-F` flag distinction for string/integer fields, multi-line inline comment ranges via `start_line`, `LEFT`/`RIGHT` side parameter
+  https://github.com/aidankinzett/claude-git-pr-skill
