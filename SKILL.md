@@ -2,7 +2,7 @@
 name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.4.0"
+version: "1.5.0"
 ---
 
 ## Overview
@@ -84,6 +84,18 @@ Read and reason over each fetched file before proceeding.
 
 Review the fetched data against all categories below. Document findings as you go — you will write them to files in Step 4.
 
+### Anti-Rationalizations
+
+Before starting, reject these common shortcuts:
+
+| Rationalization | Why it's wrong |
+|---|---|
+| "Small PR, quick skim" | Heartbleed was two lines. Classify by risk, not size. |
+| "Just a refactor, no security impact" | Refactors break invariants and silently change failure modes. Treat as unknown until proven low-risk. |
+| "The tests pass so it's fine" | Tests can be tautological, mock the wrong symbol, or cover only the happy path. |
+| "I know this codebase well" | Familiarity creates blind spots. Follow the checklist anyway. |
+| "The author is experienced, it'll be fine" | Review the code, not the author's reputation. |
+
 ### Review Categories
 
 | Category | Key Questions |
@@ -101,6 +113,9 @@ Review the fetched data against all categories below. Document findings as you g
 - Does the stub or mock target the exact symbol production code calls? A stub wired to the wrong namespace or import path never fires (e.g., Perl: `CORE::sleep` vs `ddclient::sleep`; Python: the import path at call time, not the definition path).
 - Would this test still fail if the production logic it targets were removed or broken? If not, the test provides no regression coverage.
 - Are bare numeric literals in test assertions derived from configurable defaults? A default value is not a correctness invariant — tests should use the configurable parameter directly rather than hardcoding the default's computed value (e.g., asserting jitter is always `< interval * 0.2` when `0.2` is just the default percentage, not a fixed bound).
+- Does the test verify real behavior or mock/stub behavior? A test that asserts only on the presence of a mock marker (e.g., a `-mock` test ID, a stub return value, or a spy call count without checking what it was called with) tells you the mock fired — it says nothing about whether the code under test works correctly.
+- Are mock objects structurally complete? Partial mocks that include only the fields the author expected to need can silently hide failures when downstream code accesses omitted fields. A mock should mirror the full shape of the real object.
+- Are test-only utilities kept out of production classes? Methods added to production code solely for test setup or cleanup (e.g., a `destroy()` or `reset()` that nothing in production calls) pollute the interface, risk accidental invocation, and are a signal the design may need reconsideration.
 
 ### Finding Priority Markers
 
@@ -115,12 +130,17 @@ Review the fetched data against all categories below. Document findings as you g
 
 1. Read `metadata.json` — understand scope, linked issues, existing reviews
 2. Check for a project conventions file (`CLAUDE.md`, `CONTRIBUTING.md`, or similar) at the repo root and factor its rules into the review
-3. Read the **test changes** in `diff.patch` first, before the implementation — weakened or removed assertions are easiest to spot in isolation, before the implementation anchors your expectations
-4. Read the **implementation changes** in `diff.patch` — walk through every changed file
-5. Read `inline_comments.json` and `reviews.json` — note what reviewers already flagged (avoid duplicating)
-6. Read `issue_comments.json` — any discussion context
-7. Check commit messages for clarity and accuracy
-8. Apply the category checklist above
+3. **Git history check** — for each file touched by the PR, scan recent commits for removals of security-sensitive code:
+   ```bash
+   gh api "/repos/${REPO}/commits" --jq '.[].commit.message' | grep -iE 'fix|security|cve|auth|vuln' | head -20
+   ```
+   If the PR removes or rewrites code that was previously added by a commit mentioning `fix`, `security`, `CVE`, or `auth`, treat that as an immediate red flag requiring deeper scrutiny — the removed code may have been a deliberate safeguard.
+4. Read the **test changes** in `diff.patch` first, before the implementation — weakened or removed assertions are easiest to spot in isolation, before the implementation anchors your expectations
+5. Read the **implementation changes** in `diff.patch` — walk through every changed file
+6. Read `inline_comments.json` and `reviews.json` — note what reviewers already flagged (avoid duplicating)
+7. Read `issue_comments.json` — any discussion context
+8. Check commit messages for clarity and accuracy
+9. Apply the category checklist above
 
 ---
 
@@ -294,3 +314,7 @@ Sources consulted when building and refining this checklist:
 - **ddclient/ddclient PR #888 review** — real-world review where the testing depth checks were first identified: Perl namespace mismatch (`CORE::sleep` vs `ddclient::sleep`), regression sensitivity, and configurable-default-as-invariant in test assertions
 - **aidankinzett/claude-git-pr-skill** — contributed: pending review API pattern (bundle inline comments into PENDING review before submitting), code suggestion ` ```suggestion ` block syntax, `-f` vs `-F` flag distinction for string/integer fields, multi-line inline comment ranges via `start_line`, `LEFT`/`RIGHT` side parameter
   https://github.com/aidankinzett/claude-git-pr-skill
+- **obra/superpowers — testing-anti-patterns** — contributed: mock-behavior testing (tests that assert on mock presence rather than real behavior), incomplete mock objects, test-only methods added to production classes
+  https://github.com/obra/superpowers/blob/main/skills/test-driven-development/testing-anti-patterns.md
+- **Trail of Bits / differential-review** — contributed: anti-rationalization table ("small PR" / "just a refactor" rationalizations), git history check for security-sensitive removed code (commits tagged fix/CVE/auth/security as red flags)
+  https://github.com/trailofbits/skills/tree/main/plugins/differential-review
