@@ -2,7 +2,7 @@
 name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.5.0"
+version: "1.6.0"
 ---
 
 ## Overview
@@ -101,13 +101,13 @@ Before starting, reject these common shortcuts:
 | Category | Key Questions |
 |---|---|
 | **Functionality** | Does the code solve the stated problem? Edge cases handled? Regressions possible? |
-| **Correctness** | Logic errors? Off-by-one? Null/undef dereferences? Guard clauses used to reduce nesting rather than deep if/else chains? What are the failure modes — do they fail loudly, silently, or dangerously? For changes to shared, base, or widely-used code: is the impact radius understood? Could this break callers in non-obvious ways? Concurrency: race conditions, shared mutable state, or missing locks in concurrent contexts? |
+| **Correctness** | Logic errors? Off-by-one? Null/undef dereferences? Guard clauses used to reduce nesting rather than deep if/else chains? What are the failure modes — do they fail loudly, silently, or dangerously? For changes to shared, base, or widely-used code: is the impact radius understood? Could this break callers in non-obvious ways? Concurrency: race conditions, shared mutable state, or missing locks in concurrent contexts? For bug fixes: does the fix validate at multiple layers (entry point, business logic, environment guard) or only patch the immediate call site? A single check can be bypassed by a different code path, a mock, or a refactor. |
 | **Readability** | Meaningful names? DRY? Comments explain *why* not *what*? Magic numbers replaced with named constants? Functions kept to a reasonable length, with abstraction applied where appropriate? Are there one-use trivial helpers or wrapper classes that add indirection without value? Is there a simpler built-in or standard library method that could replace custom logic? |
 | **Style** | Consistent with codebase conventions? Follows project patterns? |
 | **Performance** | Any O(n²) where O(n) would do? Unnecessary repeated calls? |
-| **Security** | Injection? Unvalidated external input? Credential exposure? |
+| **Security** | Injection? Unvalidated external input? Credential exposure? Fail-closed: when an operation fails (network timeout, parse failure, API error), does the code deny/fail safely rather than silently proceed with stale or empty data? For PRs that add or update a dependency: is the version pinned, the source auditable, and are there no known CVEs? |
 | **Testing** | Tests exist? Cover success and error paths? Assertions meaningful? Does the PR description show evidence the author ran and tested the change locally? Are any existing assertions weakened, removed, or replaced with tautologies to make tests pass? |
-| **PR Quality** | Focused scope? Commit messages clear? Description accurate? PR not in draft/WIP without proper designation? For user-facing changes, is a changelog or NEWS entry included? Is this change solving the right problem — not just implementing what was literally asked? |
+| **PR Quality** | Focused scope? Commit messages clear? Description accurate? PR not in draft/WIP without proper designation? For user-facing changes, is a changelog or NEWS entry included? Is this change solving the right problem — not just implementing what was literally asked? For config file or API changes: is backward compatibility with existing deployments considered and are migration steps documented? |
 
 **Testing — additional checks:**
 - Does the stub or mock target the exact symbol production code calls? A stub wired to the wrong namespace or import path never fires (e.g., Perl: `CORE::sleep` vs `ddclient::sleep`; Python: the import path at call time, not the definition path).
@@ -171,7 +171,8 @@ Rules for this file:
 - No line number references (GitHub renders diffs, not line numbers in comment bodies)
 - No internal analysis notes
 - Direct, professional tone — consistent with project communication style
-- Lead with a brief summary paragraph, then findings grouped by priority
+- Lead with genuine Praise before listing issues — accurate acknowledgement of what the author got right builds trust in the critical feedback that follows
+- Then findings grouped by priority
 - End with overall recommendation: approve / request changes / comment
 
 ---
@@ -318,3 +319,7 @@ Sources consulted when building and refining this checklist:
   https://github.com/obra/superpowers/blob/main/skills/test-driven-development/testing-anti-patterns.md
 - **Trail of Bits / differential-review** — contributed: anti-rationalization table ("small PR" / "just a refactor" rationalizations), git history check for security-sensitive removed code (commits tagged fix/CVE/auth/security as red flags)
   https://github.com/trailofbits/skills/tree/main/plugins/differential-review
+- **obra/superpowers — requesting-code-review / code-reviewer template** — contributed: calibration note (lead with genuine praise before issues; authors trust critical feedback more when strengths are acknowledged accurately), backward compatibility and migration steps as a PR Quality check
+  https://github.com/obra/superpowers/tree/main/skills/requesting-code-review
+- **agamm/claude-code-owasp** — contributed: fail-closed error handling (deny/fail safely on network/parse failures, not silently proceed with stale data), supply chain check for new/updated dependencies (pinned version, auditable source, known CVEs)
+  https://github.com/agamm/claude-code-owasp
