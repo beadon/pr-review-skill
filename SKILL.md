@@ -2,7 +2,7 @@
 name: pr-review
 allowed-tools: Bash(gh:*), Bash(git clone:*), Bash(git log:*), Bash(git diff:*), Bash(mkdir:*), Bash(grep:*), Bash(find:*), Bash(wc:*), Bash(jq:*), Read, Write
 description: Comprehensive GitHub PR code review — fetches diff/metadata/comments via gh CLI, writes review files, posts only on /send or /send-decline
-version: "1.6.0"
+version: "1.7.0"
 ---
 
 ## Overview
@@ -116,6 +116,7 @@ Before starting, reject these common shortcuts:
 - Does the test verify real behavior or mock/stub behavior? A test that asserts only on the presence of a mock marker (e.g., a `-mock` test ID, a stub return value, or a spy call count without checking what it was called with) tells you the mock fired — it says nothing about whether the code under test works correctly.
 - Are mock objects structurally complete? Partial mocks that include only the fields the author expected to need can silently hide failures when downstream code accesses omitted fields. A mock should mirror the full shape of the real object.
 - Are test-only utilities kept out of production classes? Methods added to production code solely for test setup or cleanup (e.g., a `destroy()` or `reset()` that nothing in production calls) pollute the interface, risk accidental invocation, and are a signal the design may need reconsideration.
+- Does error-handling code fall back to a cached or default value silently on failure? A catch block that swallows an exception and returns stale or empty data looks like success to the caller but hides the underlying error. Fallbacks must be explicit, logged, and scoped to the expected failure type — broad catch blocks that fall back to defaults also mask unrelated errors.
 
 ### Finding Priority Markers
 
@@ -139,8 +140,14 @@ Before starting, reject these common shortcuts:
 5. Read the **implementation changes** in `diff.patch` — walk through every changed file
 6. Read `inline_comments.json` and `reviews.json` — note what reviewers already flagged (avoid duplicating)
 7. Read `issue_comments.json` — any discussion context
-8. Check commit messages for clarity and accuracy
-9. Apply the category checklist above
+8. **Recurring reviewer patterns** — for the 1-2 most-modified files, check whether similar issues have been raised in previous PRs by finding recent PR numbers from the commit log:
+   ```bash
+   gh api "/repos/${REPO}/commits?path=PATH&per_page=10" \
+     --jq '.[].commit.message' | grep -oE '#[0-9]+' | head -5
+   ```
+   For each PR number found, spot-check its review comments. If the author has been flagged for the same pattern before and it recurs here, that is worth noting — patterns matter more than isolated incidents.
+9. Check commit messages for clarity and accuracy
+10. Apply the category checklist above
 
 ---
 
@@ -323,3 +330,5 @@ Sources consulted when building and refining this checklist:
   https://github.com/obra/superpowers/tree/main/skills/requesting-code-review
 - **agamm/claude-code-owasp** — contributed: fail-closed error handling (deny/fail safely on network/parse failures, not silently proceed with stale data), supply chain check for new/updated dependencies (pinned version, auditable source, known CVEs)
   https://github.com/agamm/claude-code-owasp
+- **fcakyon/claude-code — pr-review-toolkit** — contributed: recurring reviewer patterns check (use git commit log to find prior PR numbers on touched files, spot-check for repeated issues), fallback-masking-errors pattern (catch blocks that swallow exceptions and return stale/default data, hiding the underlying failure from callers)
+  https://github.com/fcakyon/claude-code/tree/main/plugins/pr-review-toolkit
